@@ -1,0 +1,221 @@
+---
+title: "Différence d'utilisation des vélos entre membres annuels et clients occasionnels"
+author: "Quentin Dufour"
+date: "17/03/2022"
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  fig.asp = 0.7,
+  fig.width = 6,
+  warning = FALSE,
+  message = FALSE,
+  collapse = FALSE,
+  comment = "#>"
+)
+```
+
+
+## Objectif
+
+
+Une entreprise de location de vélos appelée Cyclistic propose ses services de manière flexible : location unitaire, quotidienne, ou bien devenir membre annuel avec un accès illimité. L'objectif de l'analyse est de déterminer comment les membres annuels et les clients occasionnels utilisent les vélos de Cyclistic différemment.
+
+Les données utilisées dans l'analyse on été apportées par Motivate International Inc., elles comprennent des informations telles que la catégorie à laquelle le client appartient, les horaires et lieux de début et de fin de location, ainsi que le type de vélo utilisé.
+
+
+## Manipulation des données
+
+
+Après avoir passer en revue les différents types de données à disposition j'ai choisi de créer 3 nouvelles métriques que je trouve pertinentes : la durée totale de location, le jour de location, et l'heure de location. L'échantillon que j'analyse ici représente le mois d'avril 2021, cependant les résultats restent similaires tout au long de l'année, seul le nombre d'observations varie, avec un nombre élevé en été et faible en hiver.
+
+Après avoir créé ces nouvelles métriques il faut nettoyer la base de données car des valeurs incorrectes apparaissent dues à des variables incomplètes. (Absence de la variable started_at et/ou ended_at)
+
+Ainsi après ce tri on passe d'un ensemble de données de 337 230 observations à 336 962, soit une diminution de 0.1%, ce qui est négligeable pour la suite de l'analyse.
+
+
+```{r, echo = FALSE}
+library(tidyverse)
+library(ggpmisc)
+library(chron)
+
+setwd("C:/Users/Quent/Projets/R/Case Study 1")
+
+data = read.csv("202104-divvy-tripdata.csv")
+
+size <- dim(data)[1]
+use_time <- rep(NA,size)
+hour <- rep(NA, size)
+days <- rep(NA, size)
+i = 1
+while(i < size)
+  {
+  use_time[i] <- abs(difftime(as.POSIXct(data[i,"ended_at"]), as.POSIXct(data[i,"started_at"]), unit = "mins"))
+  days[i] <- strftime(data[i,"started_at"], "%A")
+  hour[i] <- times(strftime(data[i,"started_at"], "%T"))*24
+  i = i + 1
+  }
+data <- cbind(data, use_time, days, hour) #add use_time and days columns
+df = data[complete.cases(data), ] #remove NA values (not added from the beginning, incomplete ended_at or started_at column)
+```
+
+
+## Résumé de l'analyse
+
+
+En premier lieu on compare les différents types de vélo utilisés par les clients occasionnels et par les membres annuels afin d'observer d'éventuelles préférences. On a 3 types de vélos différents, les classiques, les électriques et les "docked" qui correspondent à des vélos classiques loués pour la journée aux clients occasionnels.
+
+<br>
+
+```{r, echo = FALSE, fig.show='hold'}
+a1 = paste(toString(round(length(which(df$member_casual == "member" & df$rideable_type == "electric_bike")) * 100 /
+  length(which(df$member_casual == "member")), digit = 1)), "%", sep = "") #proportion of members using electric bikes
+a2 = paste(toString(round(length(which(df$member_casual == "member" & df$rideable_type == "classic_bike")) * 100 /
+  length(which(df$member_casual == "member")), digit = 1)), "%", sep = "") #proportion of members using classic bikes
+
+b1 = paste(toString(round(length(which(df$member_casual == "casual" & df$rideable_type == "electric_bike")) * 100 /
+  length(which(df$member_casual == "casual")), digit = 1)), "%", sep = "") #proportion of casual members using electric bikes
+b2 = paste(toString(round(length(which(df$member_casual == "casual" & df$rideable_type == "classic_bike")) * 100 /
+  length(which(df$member_casual == "casual")), digit = 1)), "%", sep = "") #proportion of casual members using classic bikes
+b3 = paste(toString(round(length(which(df$member_casual == "casual" & df$rideable_type == "docked_bike")) * 100 /
+  length(which(df$member_casual == "casual")), digit = 1)), "%", sep = "") #proportion of casual members using docked bikes
+
+c1 = paste("electric bike =", paste(toString(round(length(which(df$rideable_type == "electric_bike")) * 100 /
+  dim(df)[1], digit = 1)), "%", sep = "")) #proportion of electric bikes
+c2 = paste("classic bike =", paste(toString(round(length(which(df$rideable_type == "classic_bike")) * 100 /
+  dim(df)[1], digit = 1)), "%", sep = "")) #proportion of classic bikes
+c3 = paste("docked bike =", paste(toString(round(length(which(df$rideable_type == "docked_bike")) * 100 /
+  dim(df)[1], digit = 1)), "%", sep = "")) #proportion of docked bikes
+
+ggplot(df) + geom_bar(aes(x = rideable_type, fill = member_casual)) +
+  labs(title = "Comparaison des type de vélos", subtitle = "Qui utilise quel genre de vélo ?", caption = "Données fournies par Motivate International Inc.", x = "Type de vélo", y = "Nombre d'utilisation") +
+  annotate("text", x = 3, y = 75000, label = a1, color = "black") + 
+  annotate("text", x = 1, y = 75000, label = a2, color = "black") + 
+  annotate("text", x = 3, y = 25000, label = b1, color = "black") + 
+  annotate("text", x = 1, y = 185000, label = b2, color = "black") + 
+  annotate("text", x = 2, y = 10000, label = b3, color = "black") +
+  annotate("text", x = 2.5, y = 200000, label = c2, color = "#FF9999") + 
+  annotate("text", x = 2.5, y = 175000, label = c1, color = "#FF9999") + 
+  annotate("text", x = 2.5, y = 150000, label = c3, color = "#FF9999")
+```
+
+<br>
+
+En intégrant les vélos "docked" à la proportion de vélos classiques, on observe des préférences similaires pour les 2 types de clients : 70% de vélos classiques pour 30% de vélos électriques.
+Il faut donc à priori chercher ailleurs pour si l'on veut observer une différence d'utilisation.
+
+On s'interesse à présent à la métrique qu'on a créé : la durée d'utilisation des vélos, et on compare directement comment les membres annuels et clients occasionels diffèrent dans leur utilisation des vélos.
+
+<br>
+
+```{r, echo = FALSE}
+d1 = df %>% filter(member_casual == "member" & use_time < 120) %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+d1 = round(d1, digit = 1)
+d2 = df %>% filter(member_casual == "casual" & use_time < 120) %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+d2 = round(d2, digit = 1)
+tab <- tibble(Membership = c("Member", "Casual"),
+              Mean = c(d1[[1]], d2[[1]]),
+              Median = c(d1[[2]], d2[[2]]),
+              Sd = c(d1[[3]], d2[[3]]))
+ggplot(df, aes(use_time, color = member_casual, fill = member_casual)) +
+  geom_density(alpha = 0.1) + xlim(0, 120) +
+  labs(title = "Durée d'utilisation des vélos", subtitle = "Quelle est la différence de durée d'utilisation des vélos ?", caption = "Données fournies par Motivate International Inc.", x = "Durée d'utilisation", y = "Densité") +
+  annotate(geom = "table", x = 60, y = 0.06, label = list(tab)) 
+
+ggplot(df, aes(use_time, color = rideable_type, fill = rideable_type)) +
+  geom_density(alpha = 0.1) + xlim(0, 60) + facet_wrap(~member_casual) +
+  labs(title = "Durée d'utilisation des vélos selon leur type", subtitle = "Quelle est la différence de durée d'utilisation des vélos selon leur type ?", caption = "Données fournies par Motivate International Inc.", x = "Durée d'utilisation", y = "Densité")
+```
+
+<br>
+
+On peut ici observer une première différence dans l'utilisation des vélos entre les membres annuels et clients occasionels, les membres annuels ont tendances à utiliser les vélos pour des trajets plus courts.
+En effet on a une moyenne d'environs 14 minutes d'utilisations pour les membres contre 25 minutes pour les clients occasionnels. L'épaisseur du graphique de densité pour les clients est bien plus étroit que celui des clients occasionnels, celui se traduit par un écart-type 2 fois plus grand chez ces derniers. (écart-type de 11.8 minutes contre 22.8 minutes)
+
+La mesure de l'écart-type et de la moyenne nous permet de déduire que pour les membres 95% des locations de vélos durent moins de 37 minutes, tandis que pour les clients occasionnels 95% des locations de vélos durent moins de 1h10 minutes.
+Cette tendance se vérifie bien même si l'on regarde en séparant les différents types de vélos.
+
+Pour essayer d'expliquer cette différence on va maintenant regarder la durée d'utilisation des vélos selon le jour de la semaine.
+
+<br>
+
+```{r, echo=FALSE, results='asis'}
+e1 = df %>% filter(member_casual == "member" & use_time < 120 & days == "lundi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e1 = round(e1, digit = 1)
+e2 = df %>% filter(member_casual == "member" & use_time < 120 & days == "mardi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e2 = round(e2, digit = 1)
+e3 = df %>% filter(member_casual == "member" & use_time < 120 & days == "mercredi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e3 = round(e3, digit = 1)
+e4 = df %>% filter(member_casual == "member" & use_time < 120 & days == "jeudi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e4 = round(e4, digit = 1)
+e5 = df %>% filter(member_casual == "member" & use_time < 120 & days == "vendredi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e5 = round(e5, digit = 1)
+e6 = df %>% filter(member_casual == "member" & use_time < 120 & days == "samedi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e6 = round(e6, digit = 1)
+e7 = df %>% filter(member_casual == "member" & use_time < 120 & days == "dimanche") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e7 = round(e7, digit = 1)
+days_member <- data.frame(Days = c("Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"),
+                   Mean =  c(e1[[1]], e2[[1]], e3[[1]], e4[[1]], e5[[1]], e6[[1]], e7[[1]]),
+                   Median = c(e1[[2]], e2[[2]], e3[[2]], e4[[2]], e5[[2]], e6[[2]], e7[[2]]),
+                   Sd = c(e1[[3]], e2[[3]], e3[[3]], e4[[3]], e5[[3]], e6[[3]], e7[[3]]))
+
+e1 = df %>% filter(member_casual == "casual" & use_time < 120 & days == "lundi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e1 = round(e1, digit = 1)
+e2 = df %>% filter(member_casual == "casual" & use_time < 120 & days == "mardi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e2 = round(e2, digit = 1)
+e3 = df %>% filter(member_casual == "casual" & use_time < 120 & days == "mercredi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e3 = round(e3, digit = 1)
+e4 = df %>% filter(member_casual == "casual" & use_time < 120 & days == "jeudi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e4 = round(e4, digit = 1)
+e5 = df %>% filter(member_casual == "casual" & use_time < 120 & days == "vendredi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e5 = round(e5, digit = 1)
+e6 = df %>% filter(member_casual == "casual" & use_time < 120 & days == "samedi") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e6 = round(e6, digit = 1)
+e7 = df %>% filter(member_casual == "casual" & use_time < 120 & days == "dimanche") %>% summarize(Mean = mean(use_time), Median = median(use_time), Sd = sd(use_time))
+e7 = round(e7, digit = 1)
+days_casual <- data.frame(Days = c("Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"),
+                           Mean =  c(e1[[1]], e2[[1]], e3[[1]], e4[[1]], e5[[1]], e6[[1]], e7[[1]]),
+                           Median = c(e1[[2]], e2[[2]], e3[[2]], e4[[2]], e5[[2]], e6[[2]], e7[[2]]),
+                           Sd = c(e1[[3]], e2[[3]], e3[[3]], e4[[3]], e5[[3]], e6[[3]], e7[[3]]))
+knitr::kable(
+  list(days_member,days_casual),
+  caption = "Temps d'utilisation des vélos pour les membres et clients occasionnels (en minutes)"
+  )
+```
+
+<br>
+
+```{r, echo = FALSE}
+ggplot(df, aes(use_time, color = member_casual, fill = member_casual)) +
+  geom_density(alpha = 0.1) + xlim(0, 60) + facet_wrap(factor(days, levels = c("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")) ~.) +
+  labs(title = "Durée d'utilisation des vélos selon le jour de la semaine", subtitle = "Quelle est la différence de durée d'utilisation des vélos selon le jour de la semaine ?", caption = "Données fournies par Motivate International Inc.", x = "Durée d'utilisation", y = "Densité") 
+```
+
+<br>
+
+On peut voir que les différences de temps d'utilisation des vélos entre membres annuels et clients occasionnels ne s'explique pas en regardant uniquement le jour de la semaine car dans les 2 cas on a un comportement assez similaire avec une hausse d'activité pendant le week-end.
+
+Enfin on regarde les heures auxquelles sont utilisés les vélos selon le jour de la semaine.
+
+<br>
+
+```{r, echo = FALSE}
+ggplot(df, aes(hour, color = member_casual, fill = member_casual)) +
+  geom_density(alpha = 0.1) + xlim(0, 24) + facet_wrap(factor(days, levels = c("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")) ~.) +
+  labs(title = "Heure de location des vélos selon le jour de la semaine", subtitle = "Quelle est la différence dans l'heure de location des vélos selon le jour de la semaine ?", caption = "Données fournies par Motivate International Inc.", x = "Heure", y = "Densité") 
+```
+
+<br>
+
+On observe ici un phénomène interessant, les membres annuels ont beaucoup plus tendances à louer les vélos à divers moments de la journée, le matin et le soir notamment, probablement pour aller et venir du travail au vu des horaires, tandis que les clients occasionnels louent majoritairement durant l'après-midi uniquement.
+
+
+
+## Résumé de l'analyse
+
+
+L'analyse de ces données aura permis de mettre en avant 2 points importants : Les membres ont tendances à louer leurs vélos moins longtemps que les clients occasionnels, de plus il les utilisent à différents moments de la journée.
+Le fait que les clients occasionnels louent majoritairement durant l'après-midi laissent à penser qu'ils utilisent le vélo pour revenir de leur travail et/ou se promener après le travail.
+
+L'hypothèse serait donc que les membres annuels utilisent principalement les vélos comme moyen de locomotion pour aller et venir du travail sur des trajets assez courts, tandis que les clients occasionnels les utiliseraient plutôt à moyen récréatif. Pour vérifier cette hypothèse le plus simple serait de faire passer un questionnaire aux clients en leur demandant d'indiquer à quelle catégorie de client ils appartiennent et dans quel but ils louent des vélos.
